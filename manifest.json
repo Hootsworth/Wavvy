@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Wavvy - Wi-Fi Portal Auto Login",
+  "version": "2.0.0",
+  "description": "Intelligently detects captive Wi-Fi login portals and logs in automatically across universities, hotels, cafes, and airports.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting",
+    "notifications",
+    "idle",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Wi-Fi Portal Auto Login"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

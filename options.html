@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wavvy - Settings</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --card-header: #f1f5f9;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --line: #e2e8f0;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0f17;
+      --card: #151b26;
+      --card-header: #1c2433;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --line: #242f42;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --danger-hover: #f87171;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 36px 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .title-group h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .version-tag {
+    font-size: 11px;
+    background: var(--line);
+    color: var(--text-muted);
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+  .sub {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 13.5px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin: 12px 0 5px;
+  }
+  label:first-child { margin-top: 0; }
+
+  input[type=text], input[type=password], select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13.5px;
+    transition: border-color 0.15s, outline 0.15s;
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: var(--accent);
+  }
+
+  .input-with-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .input-with-toggle input {
+    padding-right: 40px;
+  }
+  .toggle-pwd-btn {
+    position: absolute;
+    right: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 12px;
+  }
+  .toggle-pwd-btn:hover { color: var(--text); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 520px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 10px;
+  }
+  .row label {
+    margin: 0;
+    color: var(--text);
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .profile-card {
+    border-left: 4px solid var(--accent);
+  }
+  .profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .profile-badge {
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--line);
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+
+  button {
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: var(--line); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.danger {
+    color: var(--danger);
+    border-color: transparent;
+    background: transparent;
+  }
+  button.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  button.small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 20px;
+  }
+  #saved-indicator {
+    color: var(--success);
+    font-weight: 600;
+    font-size: 13.5px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #saved-indicator.show { opacity: 1; }
+
+  .collapsible-trigger {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 12.5px;
+    padding: 0;
+    margin-top: 10px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .collapsible-content {
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .collapsible-content.open { display: block; }
+
+  /* Diagnostic Logs Section */
+  .log-console {
+    background: #090d16;
+    color: #e2e8f0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .log-entry { margin-bottom: 4px; }
+  .log-time { color: #64748b; }
+  .log-type { color: #38bdf8; font-weight: 600; }
+  .log-type.online { color: #4ade80; }
+  .log-type.fail, .log-type.error { color: #f87171; }
+  .log-type.warning { color: #fbbf24; }
+
+  .footer-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="title-group">
+      <h1><img src="icons/icon48.png" width="24" height="24" style="vertical-align:middle; border-radius:5px;" alt="Wavvy"> Wavvy <span class="version-tag">v2.0</span></h1>
+      <p class="sub">Automatically log into captive portals across universities, hotels, cafes, and airports.</p>
+    </div>
+  </header>
+
+  <!-- Global Settings -->
+  <div class="card">
+    <div class="card-title">General Preferences</div>
+    <div class="row" style="margin-top: 0">
+      <input type="checkbox" id="enabled">
+      <label for="enabled">Enable automatic portal detection &amp; login</label>
+    </div>
+    <div class="row">
+      <input type="checkbox" id="autoCloseTab" checked>
+      <label for="autoCloseTab">Automatically close login tab once authenticated</label>
+    </div>
+
+    <div class="grid-2" style="margin-top: 14px;">
+      <div>
+        <label for="checkInterval">Background Check Interval (When Online)</label>
+        <select id="checkInterval">
+          <option value="5">Every 5 minutes (Recommended - Battery Saver)</option>
+          <option value="10">Every 10 minutes (Maximum Battery Saver)</option>
+          <option value="1">Every 1 minute (Fastest Detection)</option>
+        </select>
+      </div>
+      <div>
+        <label for="notifyMode">Desktop Notifications</label>
+        <select id="notifyMode">
+          <option value="all">Notify on all logins &amp; errors</option>
+          <option value="errors">Notify only when login fails</option>
+          <option value="none">Disable notifications</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profiles Container -->
+  <div class="card-title" style="margin: 22px 0 8px; display: flex; align-items: center; justify-content: space-between;">
+    <span>Network Profiles</span>
+    <span style="font-size: 12.5px; font-weight: normal; color: var(--text-muted);">Matches first corresponding network</span>
+  </div>
+  <div id="profiles-container"></div>
+
+  <!-- Main Actions -->
+  <div class="actions">
+    <button id="add-profile-btn">+ Add Network Profile</button>
+    <button id="save-btn" class="primary">Save Changes</button>
+    <span id="saved-indicator">✓ Settings Saved</span>
+  </div>
+
+  <!-- Backup & Export -->
+  <div class="card" style="margin-top: 24px;">
+    <div class="card-title">Backup &amp; Sync</div>
+    <p class="sub" style="margin-bottom: 12px;">Export your network profiles to JSON for backup or migration to another browser.</p>
+    <div style="display: flex; gap: 8px;">
+      <button id="export-btn" class="small">Export Profiles (JSON)</button>
+      <button id="import-btn" class="small">Import Profiles (JSON)</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+    </div>
+  </div>
+
+  <!-- Live Diagnostic Logs -->
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">
+      <span>Live Diagnostics &amp; Activity Log</span>
+      <div style="display: flex; gap: 6px;">
+        <button id="refresh-logs-btn" class="small">Refresh</button>
+        <button id="copy-logs-btn" class="small">Copy</button>
+        <button id="clear-logs-btn" class="small">Clear</button>
+      </div>
+    </div>
+    <div id="log-box" class="log-console">Loading activity history...</div>
+  </div>
+
+  <div class="footer-links">
+    <span>Stored locally in your browser sandbox. Never shared with third parties.</span>
+    <span>Wavvy • Captive Portal Auto Login</span>
+  </div>
+</main>
+<script src="options.js"></script>
+</body>
+</html>
