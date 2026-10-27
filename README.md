@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Wavvy Logo" width="320">
+  <img src="logo-white.png" alt="Wavvy Logo" width="340">
 </p>
 
 <h1 align="center">Wavvy</h1>
