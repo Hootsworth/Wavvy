@@ -323,12 +323,15 @@ async function executePortalLogin(credentials) {
     if (!el) return false;
     const style = window.getComputedStyle(el);
     if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
-    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    // Elements in active tabs or background tabs might report 0 offsetWidth if not yet painted,
+    // but have client rects or parent in DOM.
+    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length || el.offsetParent !== null);
   };
 
   // Safe setter for React, Vue, Angular, Svelte reactive form inputs
   const setValue = (el, val) => {
     if (!el) return;
+    try { el.focus(); } catch {}
     const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
     if (descriptor && descriptor.set) {
@@ -336,64 +339,133 @@ async function executePortalLogin(credentials) {
     } else {
       el.value = val;
     }
+    el.dispatchEvent(new Event("focus", { bubbles: true, composed: true }));
+    el.dispatchEvent(new Event("beforeinput", { bubbles: true, composed: true }));
     el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
     el.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
-    el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: val.slice(-1) || "a" }));
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: val.slice(-1) || "a", bubbles: true, composed: true }));
+    el.dispatchEvent(new KeyboardEvent("keypress", { key: val.slice(-1) || "a", bubbles: true, composed: true }));
+    el.dispatchEvent(new KeyboardEvent("keyup", { key: val.slice(-1) || "a", bubbles: true, composed: true }));
+    el.dispatchEvent(new Event("blur", { bubbles: true, composed: true }));
   };
 
-  const TERMS_REGEX = /(accept|terms|agree|tos|policy|conditions|consent|rules|aup|disclaimer)/i;
-  const SUBMIT_REGEX = /(connect|log ?in|sign ?in|submit|continue|get online|free wi-?fi|agree|accept|access|start|enter|proceed|ok|join)/i;
+  const TERMS_REGEX = /(accept|terms|agree|tos|policy|conditions|consent|rules|aup|disclaimer|wifi|wi-fi|internet|guest|access|continue|usage)/i;
+  const ACTION_REGEX = /(connect|log ?in|sign ?in|sign ?on|log ?on|submit|continue|get online|free wi-?fi|enter|access|go|unlock|authenticate|authorize|verify|join|proceed|done|start|next|connexion|acceder|entrar|anmelden|inloggen|valider|iniciar|→|➔|➜|►|>>)/i;
+  const NEGATIVE_REGEX = /(cancel|back|return|forgot|reset|clear|help|support|info|privacy|cookie|download|sign ?up|create|register|new user|new account)/i;
   const USER_FIELD_REGEX = /(user|login|email|account|uname|identity|member|roll|reg|student|auth|phone|mobile)/i;
 
-  // 1. Accept Terms & Conditions checkboxes and radios
-  const autoAcceptTerms = (root) => {
+  // 1. Accept Terms & Conditions checkboxes and radios across entire document
+  const autoAcceptTerms = () => {
     let accepted = 0;
-    root.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    document.querySelectorAll("input[type=checkbox], input[type=radio]").forEach((cb) => {
       const label = cb.labels && cb.labels[0] ? cb.labels[0].textContent : "";
-      const text = `${cb.name || ""} ${cb.id || ""} ${cb.className || ""} ${label}`;
-      if (!cb.checked && (TERMS_REGEX.test(text) || cb.required)) {
+      const parentText = cb.parentElement ? cb.parentElement.textContent : "";
+      const text = `${cb.name || ""} ${cb.id || ""} ${cb.className || ""} ${label} ${parentText}`;
+      if (!cb.checked && (TERMS_REGEX.test(text) || cb.required || cb.getAttribute("aria-required") === "true")) {
+        try { cb.focus(); } catch {}
         cb.click();
+        cb.checked = true;
         cb.dispatchEvent(new Event("change", { bubbles: true }));
+        cb.dispatchEvent(new Event("input", { bubbles: true }));
         accepted++;
       }
     });
     return accepted;
   };
 
-  // 2. Locate Submit/CTA Button
-  const findSubmitButton = (root) => {
+  // 2. Comprehensive Button Detection & Proximity Scoring
+  const findBestSubmitButton = (pwField) => {
     if (customSubmitSelector) {
       try {
-        const custom = root.querySelector(customSubmitSelector);
+        const custom = document.querySelector(customSubmitSelector);
         if (custom && isVisible(custom)) return custom;
       } catch {}
     }
 
-    const explicit = root.querySelector("button[type=submit], input[type=submit]");
-    if (explicit && isVisible(explicit) && !explicit.disabled) return explicit;
+    // Collect all potentially clickable candidates in document
+    const rawCandidates = [
+      ...document.querySelectorAll(
+        "button, input[type=submit], input[type=button], [role=button], " +
+        "a[class*='btn'], a[class*='button'], div[class*='btn'], div[class*='button'], " +
+        "span[class*='btn'], span[class*='button'], a[onclick], div[onclick], " +
+        "[data-action*='submit'], [data-action*='login'], [data-action*='connect']"
+      )
+    ];
 
-    const candidates = [...root.querySelectorAll("button, input[type=button], a, [role=button]")].filter(
-      (b) => isVisible(b) && !b.disabled
-    );
+    // Remove duplicates
+    const candidates = Array.from(new Set(rawCandidates)).filter(isVisible);
+    if (!candidates.length) return null;
 
-    return (
-      candidates.find((b) => {
-        const text = (b.textContent || b.value || b.getAttribute("aria-label") || "").trim();
-        return SUBMIT_REGEX.test(text);
-      }) || explicit || null
-    );
+    let scored = candidates.map((el) => {
+      let score = 0;
+      const text = (el.textContent || el.value || "").trim();
+      const aria = (el.getAttribute("aria-label") || el.getAttribute("title") || "").trim();
+      const nameId = `${el.id || ""} ${el.name || ""} ${el.className || ""}`;
+      const fullText = `${text} ${aria}`.trim();
+
+      // Disqualifiers: Cancel, Back, Forgot Password, Register
+      if (NEGATIVE_REGEX.test(fullText) || NEGATIVE_REGEX.test(nameId)) {
+        return { el, score: -1000 };
+      }
+
+      // Explicit form submit button
+      if (el.type === "submit") score += 120;
+      if (el.getAttribute("role") === "button") score += 20;
+
+      // Matches action words in visible text or value
+      if (fullText && ACTION_REGEX.test(fullText)) {
+        score += 110;
+      }
+
+      // Matches action cues in id/name/attributes
+      if (ACTION_REGEX.test(nameId) || ACTION_REGEX.test(aria)) {
+        score += 80;
+      }
+
+      // Style hints (primary, submit, login button classes)
+      if (/(btn-primary|primary|btn-success|btn-login|btn-submit|submit|main-btn)/i.test(nameId)) {
+        score += 40;
+      }
+
+      // DOM Proximity scoring relative to password field
+      if (pwField) {
+        // Inside the exact same <form>
+        if (pwField.form && (el.form === pwField.form || pwField.form.contains(el))) {
+          score += 60;
+        }
+
+        // Appears AFTER the password field in document order
+        if (pwField.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+          score += 70;
+        } else {
+          // Appears before password field (less likely to be final submit)
+          score -= 30;
+        }
+      }
+
+      // Empty text but contains an icon/svg following password field (very common in modern UI)
+      if (!text && el.querySelector("svg, i, img") && pwField && (pwField.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+        score += 65;
+      }
+
+      return { el, score };
+    });
+
+    // Sort by score descending
+    scored = scored.filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+    return scored.length ? scored[0].el : null;
   };
 
   // 3. Locate Username / Identity Input
-  const findUsernameField = (root, pwField) => {
+  const findUsernameField = (pwField) => {
     if (customUserSelector) {
       try {
-        const custom = root.querySelector(customUserSelector);
+        const custom = document.querySelector(customUserSelector);
         if (custom && isVisible(custom)) return custom;
       } catch {}
     }
 
-    const inputs = [...root.querySelectorAll("input")].filter(
+    const inputs = [...document.querySelectorAll("input")].filter(
       (i) => isVisible(i) && ["text", "email", "tel", "number", "search"].includes(i.type.toLowerCase())
     );
 
@@ -420,8 +492,29 @@ async function executePortalLogin(credentials) {
     return inputs[0] || null;
   };
 
-  // Polling loop to wait for client-rendered dynamic forms (up to 4 seconds)
-  const maxWait = (mode === "clickthrough" || clickThrough) ? 6 : 14;
+  // 4. Synthetic Full Mouse/Pointer Interaction Sequence
+  const dispatchFullClick = async (el) => {
+    if (!el) return false;
+    try { el.scrollIntoView({ block: "center", inline: "center" }); } catch {}
+    try { el.focus(); } catch {}
+
+    const opts = { bubbles: true, cancelable: true, composed: true, view: window };
+    el.dispatchEvent(new PointerEvent("pointerover", opts));
+    el.dispatchEvent(new MouseEvent("mouseover", opts));
+    el.dispatchEvent(new PointerEvent("pointerdown", opts));
+    el.dispatchEvent(new MouseEvent("mousedown", opts));
+    el.dispatchEvent(new PointerEvent("pointerup", opts));
+    el.dispatchEvent(new MouseEvent("mouseup", opts));
+    el.dispatchEvent(new MouseEvent("click", opts));
+
+    if (typeof el.click === "function") {
+      try { el.click(); } catch {}
+    }
+    return true;
+  };
+
+  // Wait for dynamic inputs (up to 4.5 seconds)
+  const maxWait = (mode === "clickthrough" || clickThrough) ? 6 : 15;
   let pw = null;
   for (let i = 0; i < maxWait; i++) {
     if (customPassSelector) {
@@ -437,44 +530,86 @@ async function executePortalLogin(credentials) {
 
   // --- Case A: Credential-based Login ---
   if (pw && mode !== "clickthrough") {
-    const root = pw.form || document;
-    autoAcceptTerms(root);
+    // 1. Tick terms
+    autoAcceptTerms();
 
-    const user = findUsernameField(root, pw);
+    // 2. Fill credentials with comprehensive reactive events
+    const user = findUsernameField(pw);
     if (user && username) setValue(user, username);
     if (password) setValue(pw, password);
 
-    await sleep(200);
+    // Re-check terms in case filling credentials revealed/unlocked terms
+    autoAcceptTerms();
+    await sleep(250);
 
-    const btn = findSubmitButton(root);
+    // 3. Find the best submit button (with proximity scoring & heuristic ranking)
+    let btn = findBestSubmitButton(pw);
+
+    // If button is currently disabled by frontend form validation, wait up to 1.5s for it to unlock
+    if (btn && (btn.disabled || btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("disabled"))) {
+      for (let w = 0; w < 6 && btn.disabled; w++) {
+        await sleep(250);
+        btn = findBestSubmitButton(pw) || btn;
+      }
+      // If still disabled after wait, force-enable it
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.removeAttribute("disabled");
+        btn.setAttribute("aria-disabled", "false");
+        btn.classList.remove("disabled");
+      }
+    }
+
+    // 4. Dispatch interaction
     if (btn) {
-      btn.click();
-      return { ok: true, type: "credentials_clicked", frameUrl: window.location.href };
+      await dispatchFullClick(btn);
+
+      // Fail-safe: Also trigger Enter key and form.requestSubmit if page hasn't started unloading
+      await sleep(200);
+      if (pw.form) {
+        try {
+          if (typeof pw.form.requestSubmit === "function") {
+            pw.form.requestSubmit(btn);
+          }
+        } catch {}
+      }
+      return { ok: true, type: "credentials_submitted", buttonText: (btn.textContent || btn.value || "").trim(), frameUrl: window.location.href };
     }
-    if (pw.form && pw.form.requestSubmit) {
-      pw.form.requestSubmit();
-      return { ok: true, type: "form_requestSubmit", frameUrl: window.location.href };
+
+    // Fallback if no button could be identified: Enter key & form requestSubmit
+    if (pw.form) {
+      try {
+        if (typeof pw.form.requestSubmit === "function") {
+          pw.form.requestSubmit();
+          return { ok: true, type: "form_requestSubmit", frameUrl: window.location.href };
+        }
+      } catch {}
     }
-    pw.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }));
-    return { ok: true, type: "enter_key", frameUrl: window.location.href };
+    pw.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+    pw.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+    return { ok: true, type: "enter_key_dispatched", frameUrl: window.location.href };
   }
 
   // --- Case B: Click-Through Only or Passphrase-Free Portal ---
   if (mode === "clickthrough" || clickThrough || !password) {
-    autoAcceptTerms(document);
-    const btn = findSubmitButton(document);
+    autoAcceptTerms();
+    const btn = findBestSubmitButton(null);
     if (btn) {
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.removeAttribute("disabled");
+      }
       await sleep(150);
-      btn.click();
-      return { ok: true, type: "clickthrough_clicked", button: btn.textContent?.trim(), frameUrl: window.location.href };
+      await dispatchFullClick(btn);
+      return { ok: true, type: "clickthrough_clicked", button: (btn.textContent || btn.value || "").trim(), frameUrl: window.location.href };
     }
   }
 
-  // Check if there is a multi-step "Connect" / "Guest Login" button to move to Step 2
-  const step1Btn = findSubmitButton(document);
+  // --- Case C: Multi-Step Portals (e.g. click "Guest Access" or "Campus Login" first) ---
+  const step1Btn = findBestSubmitButton(null);
   if (step1Btn && !pw) {
-    step1Btn.click();
-    return { ok: true, type: "step1_transition", frameUrl: window.location.href };
+    await dispatchFullClick(step1Btn);
+    return { ok: true, type: "step1_transition", button: (step1Btn.textContent || step1Btn.value || "").trim(), frameUrl: window.location.href };
   }
 
   return { ok: false, reason: "No matching login form or connect button found in this frame" };
@@ -599,6 +734,9 @@ async function check(triggerReason, isForce = false) {
       return fail(rejection);
     }
 
+    const actionDesc = successfulFrame.result.buttonText ? `button "${successfulFrame.result.buttonText}"` : successfulFrame.result.type;
+    await logEvent("submitted", `Form submitted via ${actionDesc}`);
+
     // If step 1 transition (e.g. clicked "Guest Login" or "Terms" first), wait and retry for Step 2
     if (successfulFrame.result.type === "step1_transition") {
       await logEvent("multi-step", "Step 1 button clicked, waiting for Step 2 credentials form...");
@@ -619,8 +757,8 @@ async function check(triggerReason, isForce = false) {
       } catch {}
     }
 
-    // Verification Loop: Probe until internet is unlocked (up to 14 seconds)
-    for (let attempt = 1; attempt <= 7; attempt++) {
+    // Verification Loop: Probe until internet is unlocked (up to 16 seconds)
+    for (let attempt = 1; attempt <= 8; attempt++) {
       await sleep(2000);
       const verify = await detectPortal();
       if (verify.state === "online") {
